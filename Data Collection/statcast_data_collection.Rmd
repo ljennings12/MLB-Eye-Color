@@ -1,0 +1,91 @@
+---
+title: "Download Savant Function"
+author: "Liam Jennings"
+date: "2025-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PURPOSE: Initialize utility function from Dr. Scott Powers for gathering pitch level data
+
+Download Statcast data from Baseball Savant
+ 
+Loop over five days at a time to download data from the Statcast search API at Baseball Savant.
+
+This includes swing tracking data not available through the MLB statsapi.
+
+<br>
+
+**@param start_date first date included in the download**
+**@param end_date last date included in the download**
+**@param verbose logical, should progress be printed?, defaults to FALSE**
+
+<br>
+
+**@return a dataframe with 113 columns (as of now) and one row per pitch, with all available data**
+
+
+### Function
+```{r}
+download_savant_data <- function(start_date, end_date, verbose = FALSE) {
+  
+  base_url <- "https://baseballsavant.mlb.com/statcast_search/csv?all=true&type=details"
+  
+  # Split the dates into 5-day chunks. The Savant API will return at most 25,000 rows. Assuming 300
+  # pitches per game, a day with 15 games will have 4,500 pitches. We can safely download 5 days of
+  # data, but more days would risk hitting the 25,000-row limit.
+  days <- as.numeric(as.Date(end_date) - as.Date(start_date))
+  start_date_seq <- as.Date(start_date) + seq(from = 0, by = 5, to = days)
+  end_date_seq <- start_date_seq + 4
+  end_date_seq[length(end_date_seq)] <- end_date
+  
+  data <- NULL
+  for (i in 1:length(start_date_seq)) {
+    
+    if (verbose) {
+      message(glue::glue("Downloading Savant data from {start_date_seq[i]} to {end_date_seq[i]}"))
+    }
+    
+    url <- glue::glue("{base_url}&game_date_gt={start_date_seq[i]}&game_date_lt={end_date_seq[i]}")
+    data_i <- read.csv(url(url))
+    
+    if (nrow(data_i) == 25000) {
+      warning(
+        glue::glue("Exactly 25,000 rows returned for {start_date_seq[i]} to {end_date_seq[i]}")
+      )
+    }
+    
+    data <- dplyr::bind_rows(data, data_i)
+  }
+  
+  return(data)
+}
+```
+
+### Load Statcast Data
+```{r}
+## 2021
+statcast_2021 <- download_savant_data("2021-04-01", "2021-10-03")
+
+## 2022
+statcast_2022 <- download_savant_data("2022-04-07", "2022-10-05")
+
+## 2023
+statcast_2023 <- download_savant_data("2023-03-30", "2023-10-01")
+
+## 2024
+statcast_2024 <- download_savant_data("2024-03-20", "2024-09-30")
+
+## rowbind
+statcast <- rbind(statcast_2021, statcast_2022, statcast_2023, statcast_2024)
+```
+
+
+### Save the data
+```{r}
+write.csv(statcast, "statcast.csv")
+```
+
