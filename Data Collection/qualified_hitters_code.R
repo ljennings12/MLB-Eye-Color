@@ -126,3 +126,14 @@ first_pitch_df <- tibble(
   mutate(
     first_pitch = pmap(list(game_pk, home_team), first_pitch_time_function)
   )
+
+## unlist first pitch variable
+first_pitch_clean <- {
+  first_pitch_df |> 
+    mutate(first_pitch = unlist(first_pitch_df$first_pitch)) |> 
+    as.data.frame()
+}
+
+
+## save first pitch data (will need to manually change international games and check AM games for accuracy)
+write.csv(first_pitch_clean, "first_pitch_times.csv")
