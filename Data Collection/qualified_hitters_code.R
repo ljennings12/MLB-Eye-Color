@@ -201,6 +201,7 @@ day_night_df |>
   ) +
   # labels
   labs(
+    x = "Time of Day",
     y = "Percentage",
     title = "MLB Time of Day Breakdown"
   ) +
@@ -218,31 +219,289 @@ day_night_df |>
   )
 
 
-## save first pitch data (will need to manually change international games and check AM games for accuracy)
-# write.csv(first_pitch_clean, "first_pitch_times.csv")
+# Look at Plate Appearances in Each Time of Day ---------------------------
+## day time
+statcast_day <- {
+  statcast_qh |> 
+    # filter for day time
+    filter(game_pk %in% c(day_night_df |> filter(DayNight == "Day") |> pull(game_pk))) |> 
+    
+    # mutate
+    mutate(
+      # change game_year to Season
+      season = factor(game_year, levels = c(2021, 2022, 2023, 2024)),
+      
+      # Create a swing indicator
+      swing = ifelse(description %in%
+                       c("bunt_foul_tip",
+                         "foul", "foul_bunt",
+                         "foul_pitchout",
+                         "foul_tip", "hit_into_play",
+                         "missed_bunt", "swinging_strike",
+                         "swinging_strike_blocked"), 
+                     1, 0),
+      
+      
+      # Create an indicator for a missed swing attempt
+      miss = ifelse(description %in%
+                      c("missed_bunt", "swinging_strike",
+                        "swinging_strike_blocked", "foul_tip",
+                        "bunt_foul_tip"), 
+                    1, 0)
+      
+      # not worrying about platoon advantages / handedness standardization
+    ) |> 
+    
+    # group by batter and season
+    group_by(
+      batter, 
+      player_name,
+      season
+    ) |> 
+    
+    # hitter summary stats
+    summarize(
+      # counting stats
+      n_pitches = n(),
+      n_swings = sum(swing, na.rm = TRUE),
+      n_miss = sum(miss, na.rm = TRUE),
+      swing_strikes = sum(swing == 1 & miss == 1, na.rm = TRUE),
+      n_in_zone_swing = sum(swing == 1 & zone %in% c(1:9), na.rm = TRUE),
+      n_out_zone_swing = sum(swing == 1 & !(zone %in% c(1:9)), na.rm = TRUE),
+      n_in_zone_contact = sum(swing == 1 & miss == 0 & zone %in% c(1:9), na.rm = TRUE),
+      n_out_zone_contact = sum(swing == 1 & miss == 0 & !(zone %in% c(1:9)), na.rm = TRUE),
+      n_in_zone_swing_and_miss = sum(swing == 1 & miss == 1 & zone %in% c(1:9), na.rm = TRUE),
+      n_out_zone_swing_and_miss = sum(swing == 1 & miss == 1 & !(zone %in% c(1:9)), na.rm = TRUE),
+      n_pitch_in_zone = sum(zone %in% c(1:9), na.rm = TRUE),
+      n_pitch_out_zone = sum(!(zone %in% c(1:9)), na.rm = TRUE),
+      
+      # metrics
+      xwOBA = mean(estimated_woba_using_speedangle, na.rm = TRUE),
+      
+    ) |> 
+    
+    # calculate common baseball stats
+    mutate(
+      # Zone %
+      zone_pct = round(n_pitch_in_zone / n_pitches, 6) * 100,
+      
+      # Zone Swing %
+      zone_swing_pct = round(n_in_zone_swing / n_pitch_in_zone, 6) * 100,
+      
+      # Zone Contact %
+      zone_contact_pct = round(n_in_zone_contact / n_in_zone_swing, 6) * 100,
+      
+      # Zone Swing and Miss %
+      zone_swing_and_miss_pct = round(n_in_zone_swing_and_miss / n_in_zone_swing, 6) * 100,
+      
+      # Chase %
+      chase_pct = round(n_out_zone_swing / n_pitch_out_zone, 6) * 100,
+      
+      # Chase Contact %
+      chase_contact_pct = round(n_out_zone_contact / n_out_zone_swing, 6) * 100,
+      
+      # Chase swing and miss pct
+      chase_swing_and_miss_pct = round(n_out_zone_swing_and_miss / n_out_zone_swing, 6) * 100,
+      
+      # Swing %
+      swing_pct = round(n_swings / n_pitches, 6) * 100,
+      
+      # Whiff %
+      whiff_pct = round(n_miss / n_swings, 6) * 100,
+      
+      # Swing and miss Rate
+      swing_and_miss_pct = round(swing_strikes / n_pitches, 6) * 100
+    ) |> 
+    
+    # ungroup
+    ungroup()
+}
+
+## night time
+statcast_night <- {
+  statcast_qh |> 
+    # filter for day time
+    filter(game_pk %in% c(day_night_df |> filter(DayNight == "Night") |> pull(game_pk))) |> 
+    
+    # mutate
+    mutate(
+      # change game_year to Season
+      season = factor(game_year, levels = c(2021, 2022, 2023, 2024)),
+      
+      # Create a swing indicator
+      swing = ifelse(description %in%
+                       c("bunt_foul_tip",
+                         "foul", "foul_bunt",
+                         "foul_pitchout",
+                         "foul_tip", "hit_into_play",
+                         "missed_bunt", "swinging_strike",
+                         "swinging_strike_blocked"), 
+                     1, 0),
+      
+      
+      # Create an indicator for a missed swing attempt
+      miss = ifelse(description %in%
+                      c("missed_bunt", "swinging_strike",
+                        "swinging_strike_blocked", "foul_tip",
+                        "bunt_foul_tip"), 
+                    1, 0)
+      
+      # not worrying about platoon advantages / handedness standardization
+    ) |> 
+    
+    # group by batter and season
+    group_by(
+      batter, 
+      player_name,
+      season
+    ) |> 
+    
+    # hitter summary stats
+    summarize(
+      # counting stats
+      n_pitches = n(),
+      n_swings = sum(swing, na.rm = TRUE),
+      n_miss = sum(miss, na.rm = TRUE),
+      swing_strikes = sum(swing == 1 & miss == 1, na.rm = TRUE),
+      n_in_zone_swing = sum(swing == 1 & zone %in% c(1:9), na.rm = TRUE),
+      n_out_zone_swing = sum(swing == 1 & !(zone %in% c(1:9)), na.rm = TRUE),
+      n_in_zone_contact = sum(swing == 1 & miss == 0 & zone %in% c(1:9), na.rm = TRUE),
+      n_out_zone_contact = sum(swing == 1 & miss == 0 & !(zone %in% c(1:9)), na.rm = TRUE),
+      n_in_zone_swing_and_miss = sum(swing == 1 & miss == 1 & zone %in% c(1:9), na.rm = TRUE),
+      n_out_zone_swing_and_miss = sum(swing == 1 & miss == 1 & !(zone %in% c(1:9)), na.rm = TRUE),
+      n_pitch_in_zone = sum(zone %in% c(1:9), na.rm = TRUE),
+      n_pitch_out_zone = sum(!(zone %in% c(1:9)), na.rm = TRUE),
+      
+      # metrics
+      xwOBA = mean(estimated_woba_using_speedangle, na.rm = TRUE),
+      
+    ) |> 
+    
+    # calculate common baseball stats
+    mutate(
+      # Zone %
+      zone_pct = round(n_pitch_in_zone / n_pitches, 6) * 100,
+      
+      # Zone Swing %
+      zone_swing_pct = round(n_in_zone_swing / n_pitch_in_zone, 6) * 100,
+      
+      # Zone Contact %
+      zone_contact_pct = round(n_in_zone_contact / n_in_zone_swing, 6) * 100,
+      
+      # Zone Swing and Miss %
+      zone_swing_and_miss_pct = round(n_in_zone_swing_and_miss / n_in_zone_swing, 6) * 100,
+      
+      # Chase %
+      chase_pct = round(n_out_zone_swing / n_pitch_out_zone, 6) * 100,
+      
+      # Chase Contact %
+      chase_contact_pct = round(n_out_zone_contact / n_out_zone_swing, 6) * 100,
+      
+      # Chase swing and miss pct
+      chase_swing_and_miss_pct = round(n_out_zone_swing_and_miss / n_out_zone_swing, 6) * 100,
+      
+      # Swing %
+      swing_pct = round(n_swings / n_pitches, 6) * 100,
+      
+      # Whiff %
+      whiff_pct = round(n_miss / n_swings, 6) * 100,
+      
+      # Swing and miss Rate
+      swing_and_miss_pct = round(swing_strikes / n_pitches, 6) * 100
+    ) |> 
+    
+    # ungroup
+    ungroup()
+}
 
 
 
+## plot
+tibble(
+  xwOBA = c(statcast_day$xwOBA, statcast_night$xwOBA),
+  dayNight = c(rep("Day", 525), rep("Night", 525))
+) |> 
+  mutate(
+    dayNight = factor(dayNight)
+  ) |> 
+  ggplot(aes(xwOBA, dayNight, fill = dayNight)) +
+  # scatterplot
+  # geom_point(
+  #   position = "jitter",
+  #   size = 1.5,
+  #   alpha = 0.5
+  # ) +
+  # boxplot
+  geom_boxplot(
+    color = "black",
+    alpha = 0.60
+  ) +
+  # violin plot
+  geom_violin(
+    alpha = 0.10
+  ) +
+  # labels
+  labs(
+    y = "Time of Day",
+    title = "xwOBA by Time of Day"
+  ) +
+  # scale age colors
+  scale_fill_manual(
+    values = c("#A5ACAF", "#FFB612")
+  ) +
+  theme(
+    # center and bold title
+    plot.title = element_text(face = "bold", size = 18, hjust = 0.5),
+    # remove legend
+    legend.position = "none"
+  )
 
 
+## histogram
+### bin width
+bw <- 2 * IQR(statcast_day$xwOBA - statcast_night$xwOBA) / 525 ^ (1/3)
 
-# Draft Code --------------------------------------------------------------
-
-## get time code for a game
-test_game <- baseballr::mlb_game_timecodes(634612)
-
-## only take first observation for first pitch (may be able to do each timestamp throughout the game)
-first_pitch <- test_game[3,]
-
-## full date and time in a single string
-first_pitch_time <- paste0(substr(first_pitch, 1, 8), " ", substr(first_pitch, 10, 15))
-
-## convert to a time object
-first_pitch_time <- first_pitch_time |> ymd_hms()
-
-## change time zone (OlsonNames() to see every time zone)
-first_pitch_tz <- first_pitch_time |> with_tz("US/Central")
-
-## convert to 12-hour format (with AM/PM)
-formatted_time <- first_pitch_tz |> format("%I:%M %p")
-
+### plot
+tibble(
+  xwOBA_diff = statcast_day$xwOBA - statcast_night$xwOBA
+) |> 
+  ggplot(aes(xwOBA_diff)) +
+  geom_histogram(
+    aes(
+      y = after_stat(density)
+    ),
+    # bar outline color
+    color = "grey50",
+    # fill color
+    fill = "dodgerblue4",
+    # freedman-diaconis rule
+    binwidth = bw, 
+    # set boundary to 0
+    boundary = 0
+  ) +
+  # normal density curve
+  stat_function(
+    fun = dnorm,
+    n = 100,
+    args = list(mean = mean(statcast_day$xwOBA - statcast_night$xwOBA), sd = sd(statcast_day$xwOBA - statcast_night$xwOBA)),
+    linewidth = 1.15,
+    col = "firebrick"
+  ) +
+  # labels
+  labs(
+    x = "xwOBA Difference",
+    y = "Density",
+    title = "xwOBA Difference Between Day and Night"
+  ) +
+  # black and white theme
+  theme_bw() +
+  # theme
+  theme(
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.caption = element_text(size = 10),
+    axis.title.x = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.title.y = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.text.x = element_text(size = 12, hjust = 0.5),
+    axis.text.y = element_text(size = 12, hjust = 0.5),
+  )
