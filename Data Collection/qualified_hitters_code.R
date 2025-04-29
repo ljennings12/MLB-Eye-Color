@@ -1,4 +1,8 @@
-## Qualified Hitters from Statcast
+## Liam Jennings
+## Honors Capstone
+
+
+# Libraries and Functions -------------------------------------------------
 
 ## libraries
 library(tidyverse)
@@ -184,39 +188,6 @@ day_night_df <- first_pitch_clean |>
     DayNight != "Late Afternoon"
   )
 
-
-## theme set
-theme_set(theme_bw())
-
-## barplot of day and night games
-day_night_df |> 
-  # count day and night
-  count(DayNight) |> 
-  # calculate proportions
-  mutate(prop = n / sum(n)) |> 
-  # prop
-  ggplot(aes(DayNight, prop, fill = DayNight)) +
-  geom_col(
-    color = "black"
-  ) +
-  # labels
-  labs(
-    x = "Time of Day",
-    y = "Percentage",
-    title = "MLB Time of Day Breakdown"
-  ) +
-  # scale age colors
-  scale_fill_manual(
-    values = c("black", "#FFB612")
-  ) +
-  # y axis percentages
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  theme(
-    # center and bold title
-    plot.title = element_text(face = "bold", size = 18, hjust = 0.5),
-    # remove legend
-    legend.position = "none"
-  )
 
 
 # Look at Plate Appearances in Each Time of Day ---------------------------
@@ -416,99 +387,13 @@ statcast_night <- {
 
 
 
-## plot
-tibble(
-  xwOBA = c(statcast_day$xwOBA, statcast_night$xwOBA),
-  dayNight = c(rep("Day", 525), rep("Night", 525))
-) |> 
-  mutate(
-    dayNight = factor(dayNight)
-  ) |> 
-  ggplot(aes(xwOBA, dayNight, fill = dayNight)) +
-  # scatterplot
-  # geom_point(
-  #   position = "jitter",
-  #   size = 1.5,
-  #   alpha = 0.5
-  # ) +
-  # boxplot
-  geom_boxplot(
-    color = "black",
-    alpha = 0.60
-  ) +
-  # violin plot
-  geom_violin(
-    alpha = 0.10
-  ) +
-  # labels
-  labs(
-    y = "Time of Day",
-    title = "xwOBA by Time of Day"
-  ) +
-  # scale age colors
-  scale_fill_manual(
-    values = c("#A5ACAF", "#FFB612")
-  ) +
-  theme(
-    # center and bold title
-    plot.title = element_text(face = "bold", size = 18, hjust = 0.5),
-    # remove legend
-    legend.position = "none"
-  )
+# Eye Colors --------------------------------------------------------------
 
-
-## histogram
-### bin width
-bw <- 2 * IQR(statcast_day$xwOBA - statcast_night$xwOBA) / 525 ^ (1/3)
-
-### plot
-tibble(
-  xwOBA_diff = statcast_day$xwOBA - statcast_night$xwOBA
-) |> 
-  ggplot(aes(xwOBA_diff)) +
-  geom_histogram(
-    aes(
-      y = after_stat(density)
-    ),
-    # bar outline color
-    color = "grey50",
-    # fill color
-    fill = "dodgerblue4",
-    # freedman-diaconis rule
-    binwidth = bw, 
-    # set boundary to 0
-    boundary = 0
-  ) +
-  # normal density curve
-  stat_function(
-    fun = dnorm,
-    n = 100,
-    args = list(mean = mean(statcast_day$xwOBA - statcast_night$xwOBA), sd = sd(statcast_day$xwOBA - statcast_night$xwOBA)),
-    linewidth = 1.15,
-    col = "firebrick"
-  ) +
-  # labels
-  labs(
-    x = "xwOBA Difference",
-    y = "Density",
-    title = "xwOBA Difference Between Day and Night"
-  ) +
-  # black and white theme
-  theme_bw() +
-  # theme
-  theme(
-    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
-    plot.subtitle = element_text(size = 16, face = "bold", hjust = 0.5),
-    plot.caption = element_text(size = 10),
-    axis.title.x = element_text(size = 14, face = "bold", hjust = 0.5),
-    axis.title.y = element_text(size = 14, face = "bold", hjust = 0.5),
-    axis.text.x = element_text(size = 12, hjust = 0.5),
-    axis.text.y = element_text(size = 12, hjust = 0.5),
-  )
 
 
 ## manually enter eye color (brown, amber, green, hazel, blue, and gray)
-tibble(
+eye_colors <- tibble(
+  batter = unique(statcast_day$batter),
   player_name = unique(statcast_day$player_name),
   eye_color = c(
     "Brown", "Brown", "Amber", "Green",
@@ -576,3 +461,27 @@ tibble(
     "Blue", "Amber", "Green", "Brown"
   )
 )
+
+
+
+# Join Eye Colors with Data -----------------------------------------------
+
+
+## day dataframe
+statcast_day <- {
+  statcast_day |> 
+    # join eye colors
+    left_join(
+      eye_colors
+    )
+}
+
+
+## night dataframe
+statcast_night <- {
+  statcast_night |> 
+    # join eye colors
+    left_join(
+      eye_colors
+    )
+}
