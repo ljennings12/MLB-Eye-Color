@@ -10,6 +10,10 @@ library(tidyverse)
 library(baseballr)
 
 ## read in the data
+### read in wOBA constants
+woba_constants <- read_csv("wOBA_constants.csv")
+
+
 ### qualified hitters from Baseball Savant
 statcast_qual <- read_csv("statcast_qualified_hitters.csv")
 
@@ -179,7 +183,7 @@ day_night_df <- first_pitch_clean |>
     # create a day indicator
     DayNight = case_when(
       first_pitch <= as.POSIXct("0000-01-01 14:15:00", tz = "UTC") ~ "Day",
-      first_pitch >= as.POSIXct("0000-01-01 18:0:00", tz = "UTC") ~ "Night",
+      first_pitch >= as.POSIXct("0000-01-01 18:00:00", tz = "UTC") ~ "Night",
       first_pitch > as.POSIXct("0000-01-01 14:15:00", tz = "UTC") & first_pitch < as.POSIXct("0000-01-01 18:00:00", tz = "UTC") ~ "Late Afternoon"
     )
   ) |> 
@@ -190,7 +194,7 @@ day_night_df <- first_pitch_clean |>
 
 
 
-# Look at Plate Appearances in Each Time of Day ---------------------------
+# Divide Statcast variables into each time of day ---------------------------
 ## day time
 statcast_day <- {
   statcast_qh |> 
@@ -218,9 +222,123 @@ statcast_day <- {
                       c("missed_bunt", "swinging_strike",
                         "swinging_strike_blocked", "foul_tip",
                         "bunt_foul_tip"), 
-                    1, 0)
+                    1, 0),
+      
+      # single
+      X1B = if_else(
+        # condition
+        events == "single",
+        1,
+        0
+      ),
+      
+      # double
+      X2B = if_else(
+        # condition
+        events == "double",
+        1,
+        0
+      ),
+      
+      # triple
+      X3B = if_else(
+        # condition
+        events == "triple",
+        1,
+        0
+      ),
+      
+      # home run
+      HR = if_else(
+        # condition
+        events == "home_run",
+        1,
+        0
+      ),
+      
+      # unintentional walk
+      uBB = if_else(
+        # condition
+        events == "walk",
+        1,
+        0
+      ),
+      
+      # hit by pitch
+      HBP = if_else(
+        # condition
+        events == "hit_by_pitch",
+        1,
+        0
+      ),
+      
+      # sacrifice flies
+      SF = if_else(
+        # condition
+        events %in% c("sac_fly", "sac_fly_double_play"),
+        1,
+        0
+      ),
+      
+      # at-bats
+      AB = if_else(
+        # condition
+        events %in% c(
+          "double",
+          "double_play",
+          "field_error",
+          "field_out",
+          "fielders_choice",
+          "fielders_choice_out",
+          "force_out",
+          "grounded_into_double_play",
+          "home_run",
+          "single",
+          "strikeout",
+          "strikeout_double_play",
+          "triple",
+          "triple_play"
+        ),
+        1,
+        0
+      ),
+      
+      # plate appearance
+      PA = if_else(
+        # condition
+        events != "truncated_pa" | !(is.na(events)),
+        1,
+        0
+      )
       
       # not worrying about platoon advantages / handedness standardization
+    ) |> 
+    
+    # left join wOBA constants
+    left_join(
+      woba_constants,
+      # by
+      by = c("game_year" = "Season")
+    ) |> 
+    
+    # calculate wOBA for each season using wOBA constans
+    mutate(
+      wOBA = (
+        # unintentional walks
+        (wBB * uBB) + 
+          # hit by pitches
+          (wHBP * HBP) + 
+          # singles
+          (w1B * X1B) +   
+          # doubles
+          (w2B * X2B) +
+          # triples
+          (w3B * X3B) + 
+          # home runs
+          (wHR * HR)
+      ) / 
+        # denominator
+        (AB + uBB + SF + HBP)
     ) |> 
     
     # group by batter and season
@@ -246,8 +364,26 @@ statcast_day <- {
       n_pitch_in_zone = sum(zone %in% c(1:9), na.rm = TRUE),
       n_pitch_out_zone = sum(!(zone %in% c(1:9)), na.rm = TRUE),
       
+      # number of plate appearances
+      PA = sum(PA, na.rm = TRUE),
+      
       # metrics
       xwOBA = mean(estimated_woba_using_speedangle, na.rm = TRUE),
+      
+      # wOBA
+      wOBA = mean(wOBA, na.rm = TRUE),
+      
+      ## launch speed
+      launch_speed = mean(
+        launch_speed[!(is.na(hit_location))], 
+        na.rm = TRUE
+      ),
+      
+      ## launch angle
+      launch_angle = mean(
+        launch_angle[!(is.na(hit_location))], 
+        na.rm = TRUE
+      )
       
     ) |> 
     
@@ -288,6 +424,9 @@ statcast_day <- {
     ungroup()
 }
 
+
+
+
 ## night time
 statcast_night <- {
   statcast_qh |> 
@@ -315,9 +454,123 @@ statcast_night <- {
                       c("missed_bunt", "swinging_strike",
                         "swinging_strike_blocked", "foul_tip",
                         "bunt_foul_tip"), 
-                    1, 0)
+                    1, 0),
+      
+      # single
+      X1B = if_else(
+        # condition
+        events == "single",
+        1,
+        0
+      ),
+      
+      # double
+      X2B = if_else(
+        # condition
+        events == "double",
+        1,
+        0
+      ),
+      
+      # triple
+      X3B = if_else(
+        # condition
+        events == "triple",
+        1,
+        0
+      ),
+      
+      # home run
+      HR = if_else(
+        # condition
+        events == "home_run",
+        1,
+        0
+      ),
+      
+      # unintentional walk
+      uBB = if_else(
+        # condition
+        events == "walk",
+        1,
+        0
+      ),
+      
+      # hit by pitch
+      HBP = if_else(
+        # condition
+        events == "hit_by_pitch",
+        1,
+        0
+      ),
+      
+      # sacrifice flies
+      SF = if_else(
+        # condition
+        events %in% c("sac_fly", "sac_fly_double_play"),
+        1,
+        0
+      ),
+      
+      # at-bats
+      AB = if_else(
+        # condition
+        events %in% c(
+          "double",
+          "double_play",
+          "field_error",
+          "field_out",
+          "fielders_choice",
+          "fielders_choice_out",
+          "force_out",
+          "grounded_into_double_play",
+          "home_run",
+          "single",
+          "strikeout",
+          "strikeout_double_play",
+          "triple",
+          "triple_play"
+        ),
+        1,
+        0
+      ),
+      
+      # plate appearance
+      PA = if_else(
+        # condition
+        events != "truncated_pa" | !(is.na(events)),
+        1,
+        0
+      )
       
       # not worrying about platoon advantages / handedness standardization
+    ) |> 
+    
+    # left join wOBA constants
+    left_join(
+      woba_constants,
+      # by
+      by = c("game_year" = "Season")
+    ) |> 
+    
+    # calculate wOBA for each season using wOBA constans
+    mutate(
+      wOBA = (
+        # unintentional walks
+        (wBB * uBB) + 
+          # hit by pitches
+          (wHBP * HBP) + 
+          # singles
+          (w1B * X1B) +   
+          # doubles
+          (w2B * X2B) +
+          # triples
+          (w3B * X3B) + 
+          # home runs
+          (wHR * HR)
+      ) / 
+        # denominator
+        (AB + uBB + SF + HBP)
     ) |> 
     
     # group by batter and season
@@ -343,8 +596,26 @@ statcast_night <- {
       n_pitch_in_zone = sum(zone %in% c(1:9), na.rm = TRUE),
       n_pitch_out_zone = sum(!(zone %in% c(1:9)), na.rm = TRUE),
       
+      # number of plate appearances
+      PA = sum(PA, na.rm = TRUE),
+      
       # metrics
       xwOBA = mean(estimated_woba_using_speedangle, na.rm = TRUE),
+      
+      # wOBA
+      wOBA = mean(wOBA, na.rm = TRUE),
+      
+      ## launch speed
+      launch_speed = mean(
+        launch_speed[!(is.na(hit_location))], 
+        na.rm = TRUE
+      ),
+      
+      ## launch angle
+      launch_angle = mean(
+        launch_angle[!(is.na(hit_location))], 
+        na.rm = TRUE
+      )
       
     ) |> 
     
@@ -473,6 +744,10 @@ statcast_day <- {
     # join eye colors
     left_join(
       eye_colors
+    ) |> 
+    # mutate
+    mutate(
+      time_of_day = "day"
     )
 }
 
@@ -483,5 +758,90 @@ statcast_night <- {
     # join eye colors
     left_join(
       eye_colors
+    ) |> 
+    # mutate
+    mutate(
+      time_of_day = "night"
     )
+}
+
+
+## combine data
+statcast_join <- bind_rows(
+  statcast_day,
+  statcast_night
+)
+
+
+
+
+# Prepare Data for Modeling ----------------------------------------------------------
+
+statcast_combined <- {
+  statcast_join |> 
+    # group by
+    group_by(
+      player_name, 
+      season, 
+      time_of_day, 
+      eye_color
+    ) |> 
+    # calculate annual means
+    summarize(
+      wOBA = mean(wOBA, na.rm = TRUE),
+      PA = sum(PA),
+      launch_speed = mean(launch_speed, na.rm = TRUE),
+      launch_angle = mean(launch_angle, na.rm = TRUE),
+      whiff_pct = mean(whiff_pct, na.rm = TRUE),
+      zone_contact_pct = mean(zone_contact_pct, na.rm = TRUE)
+    ) |> 
+    # transform data
+    pivot_wider(
+      names_from = time_of_day,
+      values_from = c(
+        wOBA, 
+        PA, 
+        launch_speed, 
+        launch_angle, 
+        whiff_pct,
+        zone_contact_pct
+      )
+    ) |>
+    mutate(
+      # calculate wOBA difference
+      wOBA_diff = wOBA_day - wOBA_night,
+      
+      # calculate launch speed difference
+      launch_speed_diff = launch_speed_day - launch_speed_night,
+      
+      # calculate launch angle difference
+      launch_angle_diff = launch_angle_day - launch_angle_night,
+      
+      # calculate whiff % difference
+      whiff_pct_diff = whiff_pct_day - whiff_pct_night,
+      
+      # calculate zone_contact_pct difference
+      zone_contact_pct_diff = zone_contact_pct_day - zone_contact_pct_night,
+      
+      # recode eye colors
+      eye_color = recode(
+        eye_color,
+        "Gray" = "Blue",
+        "Green" = "Hazel",
+        "Amber" = "Brown"
+      ),
+      
+      # factor eye color
+      eye_color = factor(
+        eye_color,
+        # levels 
+        levels = c(
+          "Brown",
+          "Hazel",
+          "Blue"
+        )
+      )
+    ) |> 
+    # ungroup
+    ungroup()
 }
